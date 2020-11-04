@@ -21,7 +21,7 @@ Kaggle US Equities Data (1992-2019)
 Kaggle US reported financial Data (2010-2020)
 
 https://www.kaggle.com/finnhub/reported-financials
-https://www.kaggle.com/finnhub/end-of-day-us-market-data-survivorship-bias-free
+https://www.kaggle.com/finnhub/end-of-day-us-market-data-survivorship-bias-free # The link is not working
 
 The price data is survivorship bias free with dividend adjustments 
 
@@ -68,17 +68,17 @@ We will build scripts to automate the training and update of models on AWS sagew
 
 RL policies for continuous action space  
 
-Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor
+Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor  
 https://arxiv.org/pdf/1801.01290.pdf  
 Proximal Policy Optimization Algorithms  
 https://arxiv.org/pdf/1707.06347.pdf  
 
 Applications of RL in trading  
 
-Deep Reinforcement Learning for Trading  
-https://arxiv.org/pdf/1911.10107.pdf  
-An Application of Deep Reinforcement Learning to Algorithmic Trading		
-https://arxiv.org/pdf/2004.06627.pdf
+Deep Reinforcement Learning for Trading   
+https://arxiv.org/pdf/1911.10107.pdf   
+An Application of Deep Reinforcement Learning to Algorithmic Trading	 	
+https://arxiv.org/pdf/2004.06627.pdf  
 
 
 ### 
