@@ -1,6 +1,5 @@
 # Reinforcement Learning 
 
-
 ## Overview 
 
 Using deep reinforcement learning to generate trading signals for a basket of related US Equities using price data and financial ratios.
