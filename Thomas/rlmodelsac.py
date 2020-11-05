@@ -22,52 +22,50 @@ config["timesteps_per_iteration"] = 10000
 config["buffer_size"] = 20000
 config["n_step"] = 10
 
-config["Q_model"]["fcnet_hiddens"] = [50, 50]
-config["policy_model"]["fcnet_hiddens"] = [50, 50]
-config["num_cpus_per_worker"] = 2 
+config["Q_model"]["fcnet_hiddens"] = [10, 10]
+config["policy_model"]["fcnet_hiddens"] = [10, 10]
+config["num_cpus_per_worker"] = 2
 config["env_config"] = {
     "pricing_source": "csvdata",
-    "tickers": ["SPY", "QQQ", "SHY", "GLD", "TLT", "LQD"],
-    "lookback": 200,
-    "start": "2008-01-02",
-    "end": "2018-12-31",
+    "tickers": ["QQQ", "EEM", "TLT", "SHY", "GLD", "SLV"],
+    "lookback": 1,
+    "start": "2007-01-02",
+    "end": "2015-12-31",
 }
 
 
 def load_data(
-    price_source="csvdata",
-    tickers=["SPY", "QQQ"],
-    start="2008-01-02",
-    end="2010-01-02",
+    price_source="csvdata", tickers=["EEM", "QQQ"], start="2008-01-02", end="2010-01-02"
 ):
     """Returned price data to use in gym environment"""
-    ## Load data
-
+    # Load data
+    # Each dataframe will have columns date and a collection of fields
+    # TODO: DataLoader from mongoDB
+    # Raw price from DB, forward impute on the trading days for missing date
+    # calculate the features (log return, volatility)
     if price_source in ["csvdata"]:
-        price_df = []
+        feature_df = []
+        price_tensor = []
         for t in tickers:
             df1 = (
                 pd.read_csv("csvdata/{}.csv".format(t)).set_index("date").loc[start:end]
             )
-            price_df.append(df1)
-    ## Merge data
-    ## Reference dataframe is taken from the first ticker read where the column labels are assumed to be the same
-    if len(price_df) > 0:
-        ref_df = price_df[0]
-        ref_df_columns = price_df[0].columns
-        for i in range(1, len(price_df)):
-            ref_df = ref_df.merge(price_df[i], how="outer", on="date",)
-        merged_df = ref_df.sort_values(by="date").fillna(0)
-    ## Prepare price tensor for observation space
-    price_tensor = np.zeros(
-        shape=(merged_df.shape[0], len(ref_df_columns), len(price_df))
-    )
-    for count in range(len(price_df)):
-        price_tensor[:, :, count] = merged_df.values[
-            :, len(ref_df_columns) * count: len(ref_df_columns) * (count + 1)
-        ]
+            feature_df.append(df1)
+            price_tensor.append(
+                df1["return"]
+            )  # assumed to the be log return of the ref price
+            ref_df_columns = df1.columns
 
-    return {"dates": merged_df.index, "fields": ref_df_columns, "data": price_tensor}
+    # assume all the price_df are aligned and cleaned in the DataLoader
+    merged_df = pd.concat(feature_df, axis=1, join="outer")
+    price_tensor = np.vstack(price_tensor).transpose()
+
+    return {
+        "dates": merged_df.index,
+        "fields": ref_df_columns,
+        "pricedata": price_tensor,
+        "data": merged_df.values,
+    }
 
 
 class Equitydaily(gym.Env):
@@ -75,21 +73,24 @@ class Equitydaily(gym.Env):
 
         self.tickers = env_config["tickers"]
         self.lookback = env_config["lookback"]
-        # Load price data
-        price_data = load_data(
+        # Load price data, to be replaced by DataLoader class
+        raw_data = load_data(
             env_config["pricing_source"],
             env_config["tickers"],
             env_config["start"],
             env_config["end"],
         )
-        self.dates = price_data["dates"]
-        self.fields = price_data["fields"]
-        self.pricedata = price_data["data"]
+        # Set the trading dates, features and price data
+        self.dates = raw_data["dates"]
+        self.fields = raw_data["fields"]
+        self.pricedata = raw_data["pricedata"]
+        self.featuredata = raw_data["data"]
         # Set up historical actions and rewards
         self.n_assets = len(self.tickers) + 1
         self.n_metrics = 2
+        self.n_assets_fields = len(self.fields)
         self.n_features = (
-            len(self.fields) * len(self.tickers) + self.n_assets + self.n_metrics
+            self.n_assets_fields * len(self.tickers) + self.n_assets + self.n_metrics
         )  # reward function
 
         # Set up action and observation space
@@ -112,8 +113,8 @@ class Equitydaily(gym.Env):
         normalised_action = action / np.sum(np.abs(action))
 
         done = False
-        # Rebalance portfolio at open, use log return of open price in the following day
-        next_day_log_return = self.pricedata[self.index + 1, 0, :]
+        # Rebalance portfolio at close using return of the next date
+        next_day_log_return = self.pricedata[self.index, :]
         # transaction cost
         transaction_cost = self.transaction_cost(
             normalised_action, self.position_series[-1]
@@ -123,6 +124,7 @@ class Equitydaily(gym.Env):
         self.position_series = np.append(
             self.position_series, [normalised_action], axis=0
         )
+        # Portfolio return
         today_portfolio_return = np.sum(
             normalised_action[:-1] * next_day_log_return
         ) + np.sum(transaction_cost)
@@ -153,45 +155,36 @@ class Equitydaily(gym.Env):
 
         # Prepare observation for next day
         self.index += 1
-        price_lookback = self.pricedata[
-            self.index - self.lookback : self.index, :, :
-        ].reshape(self.lookback, -1)
+        self.observation = self.get_observation()
+
+        return self.observation, reward, done, {"current_price": next_day_log_return}
+
+    def reset(self):
+        self.log_return_series = np.zeros(shape=self.lookback)
+        self.metric_series = np.zeros(shape=self.lookback)
+        self.position_series = np.zeros(shape=(self.lookback, self.n_assets))
+        self.metric = 0
+        self.index = self.lookback
+        self.observation = self.get_observation()
+        return self.observation
+
+    def get_observation(self):
+        price_lookback = self.featuredata[self.index - self.lookback : self.index, :]
         metrics = np.vstack(
             (
                 self.log_return_series[self.index - self.lookback : self.index],
                 self.metric_series[self.index - self.lookback : self.index],
             )
         ).transpose()
-        self.observation = np.concatenate(
-            (
-                price_lookback,
-                metrics,
-                self.position_series[self.index - self.lookback : self.index],
-            ),
-            axis=1,
-        )
+        positions = self.position_series[self.index - self.lookback : self.index]
+        observation = np.concatenate((price_lookback, metrics, positions), axis=1)
+        return observation
 
-        return self.observation, reward, done, {}
-
-    def reset(self):
-
-        self.log_return_series = np.zeros(shape=self.lookback)
-        self.metric_series = np.zeros(shape=self.lookback)
-        self.position_series = np.zeros(shape=(self.lookback, self.n_assets))
-
-        self.metric = 0
-        self.index = self.lookback
-        # Observation join the price, metric and position
-        price_lookback = self.pricedata[: self.index, :, :].reshape(self.lookback, -1)
-        metrics = np.vstack((self.log_return_series, self.metric_series)).transpose()
-        self.observation = np.concatenate(
-            (price_lookback, metrics, self.position_series), axis=1
-        )
-
-        return self.observation
-
+    # 0.05% t-cost for institutional portfolios
     def transaction_cost(
-        self, new_action, old_action,
+        self,
+        new_action,
+        old_action,
     ):
         turnover = np.abs(new_action - old_action)
         fees = 0.9995
@@ -211,4 +204,3 @@ for i in range(50000):
         if result["episode_reward_mean"] > best_reward + 0.01:
             best_reward = result["episode_reward_mean"]
             print(i, best_reward)
-

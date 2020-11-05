@@ -8,6 +8,7 @@ git commit -a
 git push origin main
 
 pip install tensorflow
+pip install tensorflow-probability
 pip install gym
 pip install ray
 
