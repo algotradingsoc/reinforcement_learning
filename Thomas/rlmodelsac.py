@@ -1,9 +1,6 @@
 import gym
 from gym import spaces
-from gym.utils import seeding
 from empyrical import max_drawdown, alpha_beta, sharpe_ratio, annual_return
-
-from arctic import CHUNK_STORE, Arctic
 
 import pandas as pd
 import numpy as np
@@ -27,11 +24,9 @@ config["n_step"] = 10
 
 config["Q_model"]["fcnet_hiddens"] = [50, 50]
 config["policy_model"]["fcnet_hiddens"] = [50, 50]
-config[
-    "num_cpus_per_worker"
-] = 2  # This avoids running out of resources in the notebook environment when this cell is re-executed
+config["num_cpus_per_worker"] = 2 
 config["env_config"] = {
-    "pricing_source": "Alpaca_Equity_daily",
+    "pricing_source": "csvdata",
     "tickers": ["SPY", "QQQ", "SHY", "GLD", "TLT", "LQD"],
     "lookback": 200,
     "start": "2008-01-02",
@@ -40,25 +35,14 @@ config["env_config"] = {
 
 
 def load_data(
-    price_source="Alpaca_Equity_daily",
+    price_source="csvdata",
     tickers=["SPY", "QQQ"],
     start="2008-01-02",
     end="2010-01-02",
 ):
     """Returned price data to use in gym environment"""
     ## Load data
-    ## Each dataframe will have columns date and a collection of fields
-    if price_source in [
-        "Alpaca_Equity_daily",
-        "Alpaca_Equity_minute",
-        "Quandl_Futures_daily",
-    ]:
-        price_df = []
-        a = Arctic("localhost")
-        lib = a[price_source]
-        for t in tickers:
-            df1 = lib.read(t).set_index("date").loc[start:end]
-            price_df.append(df1[["Open", "Volume"]])
+
     if price_source in ["csvdata"]:
         price_df = []
         for t in tickers:
@@ -80,7 +64,7 @@ def load_data(
     )
     for count in range(len(price_df)):
         price_tensor[:, :, count] = merged_df.values[
-            :, len(ref_df_columns) * count : len(ref_df_columns) * (count + 1)
+            :, len(ref_df_columns) * count: len(ref_df_columns) * (count + 1)
         ]
 
     return {"dates": merged_df.index, "fields": ref_df_columns, "data": price_tensor}
