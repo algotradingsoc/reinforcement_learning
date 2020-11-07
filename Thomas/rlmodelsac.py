@@ -14,16 +14,17 @@ ray.init(num_cpus=30, ignore_reinit_error=True, log_to_driver=False)
 
 config = DEFAULT_CONFIG.copy()
 config["num_workers"] = 10
-config["num_envs_per_worker"] = 10
+config["num_envs_per_worker"] = 20
 
 config["rollout_fragment_length"] = 10
-config["train_batch_size"] = 2500
-config["timesteps_per_iteration"] = 10000
-config["buffer_size"] = 20000
-config["n_step"] = 10
+config["train_batch_size"] = 5000
+config["timesteps_per_iteration"] = 10
+config["buffer_size"] = 1000
+config["n_step"] = 5
+config["learning_starts"] = 50
 
-config["Q_model"]["fcnet_hiddens"] = [10, 10]
-config["policy_model"]["fcnet_hiddens"] = [10, 10]
+config["Q_model"]["fcnet_hiddens"] = [100, 25]
+config["policy_model"]["fcnet_hiddens"] = [100, 25]
 config["num_cpus_per_worker"] = 2
 config["env_config"] = {
     "pricing_source": "csvdata",
@@ -135,15 +136,15 @@ class Equitydaily(gym.Env):
         # Calculate reward
         # Need to cast log_return in pd series to use the functions in empyrical
         live_days = self.index - self.lookback
-        burnin = 250
-        recent_series = pd.Series(self.log_return_series)[-100:]
+        burnin = 50
+        recent_series = pd.Series(self.log_return_series)[-burnin:]
         whole_series = pd.Series(self.log_return_series)
         if live_days > burnin:
-            self.metric = annual_return(whole_series) + 0.5 * max_drawdown(whole_series)
+            self.metric = annual_return(recent_series) + 0.5 * max_drawdown(recent_series)
         else:
             self.metric = (
-                annual_return(whole_series)
-                + 0.5 * max_drawdown(whole_series) * live_days / burnin
+                (annual_return(whole_series)
+                + 0.5 * max_drawdown(whole_series)) * live_days / burnin
             )
         reward = self.metric - self.metric_series[-1]
         # reward = self.metric
