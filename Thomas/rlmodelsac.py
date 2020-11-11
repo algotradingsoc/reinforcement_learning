@@ -7,7 +7,7 @@ import numpy as np
 
 import ray
 from ray.rllib.agents.sac import SACTrainer, DEFAULT_CONFIG
-from ray.tune.logger import pretty_print
+
 
 # Start up Ray. This must be done before we instantiate any RL agents.
 ray.init(num_cpus=30, ignore_reinit_error=True, log_to_driver=False)
@@ -140,11 +140,14 @@ class Equitydaily(gym.Env):
         recent_series = pd.Series(self.log_return_series)[-burnin:]
         whole_series = pd.Series(self.log_return_series)
         if live_days > burnin:
-            self.metric = annual_return(recent_series) + 0.5 * max_drawdown(recent_series)
+            self.metric = annual_return(recent_series) + 0.5 * max_drawdown(
+                recent_series
+            )
         else:
             self.metric = (
-                (annual_return(whole_series)
-                + 0.5 * max_drawdown(whole_series)) * live_days / burnin
+                (annual_return(whole_series) + 0.5 * max_drawdown(whole_series))
+                * live_days
+                / burnin
             )
         reward = self.metric - self.metric_series[-1]
         # reward = self.metric
