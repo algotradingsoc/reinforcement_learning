@@ -26,11 +26,12 @@ config["learning_starts"] = 50
 config["Q_model"]["fcnet_hiddens"] = [100, 25]
 config["policy_model"]["fcnet_hiddens"] = [100, 25]
 config["num_cpus_per_worker"] = 2
+
 config["env_config"] = {
     "pricing_source": "csvdata",
-    "tickers": ["QQQ", "EEM", "TLT", "SHY", "GLD", "SLV"],
+    "tickers": ["QQQ", "EEM", "TLT", "SPY", "GLD", "LQD"],
     "lookback": 1,
-    "start": "2007-01-02",
+    "start": "2010-02-02",
     "end": "2015-12-31",
 }
 
@@ -49,7 +50,9 @@ def load_data(
         price_tensor = []
         for t in tickers:
             df1 = (
-                pd.read_csv("csvdata/{}.csv".format(t)).set_index("date").loc[start:end]
+                pd.read_csv("csvdata/{}.csv".format(t))
+                .set_index("datetime")
+                .loc[start:end]
             )
             feature_df.append(df1)
             price_tensor.append(
