@@ -29,6 +29,8 @@ Single stock universe: TSLA
 
 Use the DataLoader to save csv files for features. We will use the return, t_cost, volatility_20, skewness_20 and kurtosis_20 
 
+Define t-cost as a sum of bid-ask spread and fixed cost 
+
 Lookback period: 25, 90, 250. How does lookback period affect trading strategies 
 
 Trade frequency: To reduce t-cost, trade only once per week (only update actions every 5 trading days)
