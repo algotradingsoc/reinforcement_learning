@@ -18,10 +18,10 @@ config = DEFAULT_CONFIG.copy()
 config["num_workers"] = 15
 config["num_envs_per_worker"] = 5
 config["rollout_fragment_length"] = 20
-config["train_batch_size"] = 5000
+config["train_batch_size"] = 50000
 config["batch_mode"] = "complete_episodes"
 config["num_sgd_iter"] = 20
-config["sgd_minibatch_size"] = 200
+config["sgd_minibatch_size"] = 1000
 config['model']['dim'] = 10
 config['model']['conv_filters'] = [[16, [2, 1], 2], [16, [2, 1], 2], [16, [2, 1], 5]]
 config[
@@ -165,7 +165,7 @@ class Equitydaily(gym.Env):
         metrics = np.vstack((self.log_return_series[self.index-self.lookback:self.index], 
                              self.metric_series[self.index-self.lookback:self.index])).transpose()
         positions = self.position_series[self.index-self.lookback:self.index]
-        scaler = StandardScaler(with_mean=False)
+        scaler = StandardScaler()
         observation = np.concatenate((price_lookback, metrics, positions), axis=1)
         observation = scaler.fit_transform(price_lookback)
         return observation.reshape((observation.shape[0], observation.shape[1], 1))
