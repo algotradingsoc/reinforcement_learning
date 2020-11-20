@@ -22,8 +22,8 @@ config["train_batch_size"] = 50000
 config["batch_mode"] = "complete_episodes"
 config["num_sgd_iter"] = 20
 config["sgd_minibatch_size"] = 1000
-config['model']['dim'] = 10
-config['model']['conv_filters'] = [[16, [2, 1], 2], [16, [2, 1], 2], [16, [2, 1], 5]]
+config['model']['dim'] = 200
+config['model']['conv_filters'] = [[16, [5, 1], 5], [16, [5, 1], 5], [16, [5, 1], 5]]
 config[
     "num_cpus_per_worker"
 ] = 2  # This avoids running out of resources in the notebook environment when this cell is re-executed
@@ -34,7 +34,7 @@ config["env_config"] = {
         "TLT",
         "GLD",
     ],
-    "lookback": 10,
+    "lookback": 200,
     "start": "2003-01-02",
     "end": "2014-12-31",
     "features": ["volatility_20", "skewness_20", "kurtosis_20"],
@@ -115,19 +115,22 @@ class Equitydaily(gym.Env):
 
     def step(self, action):
         
-        ## Normalise action space 
-        normalised_action = action / np.sum(np.abs(action))
+        # Trade every 10 days 
+        # Normalise action space 
+        if self.index % 10 == 0:
+            normalised_action = action / np.sum(np.abs(action))
+            self.actions = normalised_action
         
         done = False
         # Rebalance portfolio at close using return of the next date
         next_day_log_return = self.pricedata[self.index,:]
         # transaction cost 
-        transaction_cost = self.transaction_cost(normalised_action,self.position_series[-1])
+        transaction_cost = self.transaction_cost(self.actions,self.position_series[-1])
         
         # Rebalancing 
-        self.position_series = np.append(self.position_series, [normalised_action], axis=0)
+        self.position_series = np.append(self.position_series, [self.actions], axis=0)
         # Portfolio return 
-        today_portfolio_return = np.sum(normalised_action[:-1] * next_day_log_return) + np.sum(transaction_cost)
+        today_portfolio_return = np.sum(self.actions[:-1] * next_day_log_return) + np.sum(transaction_cost)
         self.log_return_series = np.append(self.log_return_series, [today_portfolio_return], axis=0)
         
         
@@ -156,6 +159,7 @@ class Equitydaily(gym.Env):
         self.position_series = np.zeros(shape=(self.lookback,self.n_assets))
         self.metric = 0                    
         self.index = self.lookback
+        self.actions = np.zeros(shape=self.n_assets)
         self.observation = self.get_observation()
         return self.observation
     
@@ -171,7 +175,7 @@ class Equitydaily(gym.Env):
         return observation.reshape((observation.shape[0], observation.shape[1], 1))
     
     # 0.05% and spread to model t-cost for institutional portfolios 
-    def transaction_cost(self,new_action,old_action,):
+    def transaction_cost(self, new_action, old_action,):
         turnover = np.abs(new_action - old_action) 
         fees = 0.9995 - self.tcostdata[self.index,:]
         fees = np.array(list(fees) + [0.9995])
@@ -181,12 +185,12 @@ class Equitydaily(gym.Env):
 # Train agent
 agent = PPOTrainer(config, Equitydaily)
 
-best_reward = 100
+best_reward = 0
 for i in range(10000):
     result = agent.train()
-    if (result["episode_reward_mean"] > best_reward + 10) or (i % 1000 == 500):
-        path = agent.save("ppoagent")
+    if (result["episode_reward_mean"] > best_reward + 1) or (i % 1000 == 500):
+        path = agent.save("ppoagent200")
         print(path)
-        if result["episode_reward_mean"] > best_reward + 10:
+        if result["episode_reward_mean"] > best_reward + 1:
             best_reward = result["episode_reward_mean"]
             print(i, best_reward)
