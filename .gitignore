@@ -129,4 +129,7 @@ dmypy.json
 .pyre/
 
 # RL model checkpoints
+Thomas/sampleagent/
 Thomas/sacagent/
+Thomas/ppoagent/
+Thomas/ppoagent200/

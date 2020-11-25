@@ -4,39 +4,57 @@ from empyrical import max_drawdown, alpha_beta, sharpe_ratio, annual_return
 
 import pandas as pd
 import numpy as np
+import typing
+from datetime import datetime
 
 import ray
-from ray.rllib.agents.sac import SACTrainer, DEFAULT_CONFIG
-from ray.tune.logger import pretty_print
+from ray.rllib.agents.ppo import PPOTrainer, DEFAULT_CONFIG
+
 
 # Start up Ray. This must be done before we instantiate any RL agents.
-ray.init(num_cpus=30, ignore_reinit_error=True, log_to_driver=False)
+ray.init(num_cpus=40, ignore_reinit_error=True, log_to_driver=False)
 
 config = DEFAULT_CONFIG.copy()
-config["num_workers"] = 10
-config["num_envs_per_worker"] = 20
-
-config["rollout_fragment_length"] = 10
-config["train_batch_size"] = 5000
-config["timesteps_per_iteration"] = 10
-config["buffer_size"] = 1000
-config["n_step"] = 5
-config["learning_starts"] = 50
-
-config["Q_model"]["fcnet_hiddens"] = [100, 25]
-config["policy_model"]["fcnet_hiddens"] = [100, 25]
-config["num_cpus_per_worker"] = 2
+config["num_workers"] = 15
+config["num_envs_per_worker"] = 5
+config["rollout_fragment_length"] = 50
+config["train_batch_size"] = 20000
+config["batch_mode"] = "complete_episodes"
+config["num_sgd_iter"] = 50
+config["sgd_minibatch_size"] = 5000
+config["model"]["dim"] = 200
+config["model"]["conv_filters"] = [[32, [5, 1], 5], [32, [5, 1], 5], [4, [5, 1], 5]]
+config[
+    "num_cpus_per_worker"
+] = 2  # This avoids running out of resources in the notebook environment when this cell is re-executed
 config["env_config"] = {
     "pricing_source": "csvdata",
-    "tickers": ["QQQ", "EEM", "TLT", "SHY", "GLD", "SLV"],
-    "lookback": 1,
-    "start": "2007-01-02",
+    "tickers": [
+        "BRK_A",
+        "GE_",
+        "GOLD_",
+        "AAPL_",
+        "GS_",
+        "T_",
+    ],
+    "lookback": 200,
+    "start": "1995-01-02",
     "end": "2015-12-31",
+    "features": [
+        "return_volatility_20",
+        "return_skewness_20",
+        "return_kurtosis_20",
+        "adjvolume_volatility_20",
+    ],
 }
 
 
 def load_data(
-    price_source="csvdata", tickers=["EEM", "QQQ"], start="2008-01-02", end="2010-01-02"
+    price_source: str,
+    tickers: typing.List[str],
+    start: datetime,
+    end: datetime,
+    features: typing.List[str],
 ):
     """Returned price data to use in gym environment"""
     # Load data
@@ -46,27 +64,32 @@ def load_data(
     # calculate the features (log return, volatility)
     if price_source in ["csvdata"]:
         feature_df = []
-        price_tensor = []
         for t in tickers:
-            df1 = (
-                pd.read_csv("csvdata/{}.csv".format(t)).set_index("date").loc[start:end]
-            )
-            feature_df.append(df1)
-            price_tensor.append(
-                df1["return"]
-            )  # assumed to the be log return of the ref price
-            ref_df_columns = df1.columns
+            df1 = pd.read_csv("csvdata/{}.csv".format(t))
+            df1["datetime"] = pd.to_datetime(df1["datetime"])
+            df1 = df1[(df1["datetime"] >= start) & (df1["datetime"] <= end)]
+            df1.set_index("datetime", inplace=True)
+            selected_features = ["return", "tcost"] + features
+            feature_df.append(df1[selected_features])
+            ref_df_columns = df1[selected_features].columns
 
     # assume all the price_df are aligned and cleaned in the DataLoader
     merged_df = pd.concat(feature_df, axis=1, join="outer")
-    price_tensor = np.vstack(price_tensor).transpose()
+    # Imputer missing values with zeros
+    price_tensor = merged_df["return"].fillna(0.0).values
+    tcost = merged_df["tcost"].fillna(0.0).values
 
     return {
         "dates": merged_df.index,
         "fields": ref_df_columns,
+        "data": merged_df.fillna(0.0).values,
         "pricedata": price_tensor,
-        "data": merged_df.values,
+        "tcost": tcost,
     }
+
+
+from empyrical import max_drawdown, alpha_beta, sharpe_ratio, annual_return
+from sklearn.preprocessing import StandardScaler
 
 
 class Equitydaily(gym.Env):
@@ -80,12 +103,14 @@ class Equitydaily(gym.Env):
             env_config["tickers"],
             env_config["start"],
             env_config["end"],
+            env_config["features"],
         )
         # Set the trading dates, features and price data
         self.dates = raw_data["dates"]
         self.fields = raw_data["fields"]
         self.pricedata = raw_data["pricedata"]
         self.featuredata = raw_data["data"]
+        self.tcostdata = raw_data["tcost"]
         # Set up historical actions and rewards
         self.n_assets = len(self.tickers) + 1
         self.n_metrics = 2
@@ -93,6 +118,7 @@ class Equitydaily(gym.Env):
         self.n_features = (
             self.n_assets_fields * len(self.tickers) + self.n_assets + self.n_metrics
         )  # reward function
+        # self.n_features = self.n_assets_fields * len(self.tickers)
 
         # Set up action and observation space
         # The last asset is cash
@@ -102,7 +128,7 @@ class Equitydaily(gym.Env):
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(self.lookback, self.n_features),
+            shape=(self.lookback, self.n_features, 1),
             dtype=np.float32,
         )
 
@@ -110,24 +136,23 @@ class Equitydaily(gym.Env):
 
     def step(self, action):
 
-        ## Normalise action space
-        normalised_action = action / np.sum(np.abs(action))
+        # Trade every 10 days
+        # Normalise action space
+        if self.index % 10 == 0:
+            normalised_action = action / np.sum(np.abs(action))
+            self.actions = normalised_action
 
         done = False
         # Rebalance portfolio at close using return of the next date
         next_day_log_return = self.pricedata[self.index, :]
         # transaction cost
-        transaction_cost = self.transaction_cost(
-            normalised_action, self.position_series[-1]
-        )
+        transaction_cost = self.transaction_cost(self.actions, self.position_series[-1])
 
         # Rebalancing
-        self.position_series = np.append(
-            self.position_series, [normalised_action], axis=0
-        )
+        self.position_series = np.append(self.position_series, [self.actions], axis=0)
         # Portfolio return
         today_portfolio_return = np.sum(
-            normalised_action[:-1] * next_day_log_return
+            self.actions[:-1] * next_day_log_return
         ) + np.sum(transaction_cost)
         self.log_return_series = np.append(
             self.log_return_series, [today_portfolio_return], axis=0
@@ -135,19 +160,10 @@ class Equitydaily(gym.Env):
 
         # Calculate reward
         # Need to cast log_return in pd series to use the functions in empyrical
-        live_days = self.index - self.lookback
-        burnin = 50
-        recent_series = pd.Series(self.log_return_series)[-burnin:]
-        whole_series = pd.Series(self.log_return_series)
-        if live_days > burnin:
-            self.metric = annual_return(recent_series) + 0.5 * max_drawdown(recent_series)
-        else:
-            self.metric = (
-                (annual_return(whole_series)
-                + 0.5 * max_drawdown(whole_series)) * live_days / burnin
-            )
-        reward = self.metric - self.metric_series[-1]
-        # reward = self.metric
+        recent_series = pd.Series(self.log_return_series)[-100:]
+        rolling_volatility = np.std(recent_series)
+        self.metric = today_portfolio_return / rolling_volatility
+        reward = self.metric
         self.metric_series = np.append(self.metric_series, [self.metric], axis=0)
 
         # Check if the end of backtest
@@ -158,7 +174,7 @@ class Equitydaily(gym.Env):
         self.index += 1
         self.observation = self.get_observation()
 
-        return self.observation, reward, done, {"current_price": next_day_log_return}
+        return self.observation, reward, done, {}
 
     def reset(self):
         self.log_return_series = np.zeros(shape=self.lookback)
@@ -166,10 +182,12 @@ class Equitydaily(gym.Env):
         self.position_series = np.zeros(shape=(self.lookback, self.n_assets))
         self.metric = 0
         self.index = self.lookback
+        self.actions = np.zeros(shape=self.n_assets)
         self.observation = self.get_observation()
         return self.observation
 
     def get_observation(self):
+        # Can use simple moving average data here
         price_lookback = self.featuredata[self.index - self.lookback : self.index, :]
         metrics = np.vstack(
             (
@@ -178,30 +196,33 @@ class Equitydaily(gym.Env):
             )
         ).transpose()
         positions = self.position_series[self.index - self.lookback : self.index]
+        scaler = StandardScaler()
+        price_lookback = scaler.fit_transform(price_lookback)
         observation = np.concatenate((price_lookback, metrics, positions), axis=1)
-        return observation
+        return observation.reshape((observation.shape[0], observation.shape[1], 1))
 
-    # 0.05% t-cost for institutional portfolios
+    # 0.05% and spread to model t-cost for institutional portfolios
     def transaction_cost(
         self,
         new_action,
         old_action,
     ):
         turnover = np.abs(new_action - old_action)
-        fees = 0.9995
+        fees = 0.9995 - self.tcostdata[self.index, :]
+        fees = np.array(list(fees) + [0.9995])
         tcost = turnover * np.log(fees)
         return tcost
 
 
 # Train agent
-agent = SACTrainer(config, Equitydaily)
+agent = PPOTrainer(config, Equitydaily)
 
-best_reward = -0.4
-for i in range(50000):
+best_reward = 10
+for i in range(2500):
     result = agent.train()
-    if (result["episode_reward_mean"] > best_reward + 0.01) or (i % 1000 == 500):
-        path = agent.save("sacagent")
+    if (result["episode_reward_mean"] > best_reward + 2) or (i % 100 == 50):
+        path = agent.save("ppoagent200")
         print(path)
-        if result["episode_reward_mean"] > best_reward + 0.01:
+        if result["episode_reward_mean"] > best_reward + 2:
             best_reward = result["episode_reward_mean"]
             print(i, best_reward)
