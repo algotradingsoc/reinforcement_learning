@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "/rds/general/user/asm119/home/reinforcement_learning/Aidan/Lookback.py", line 18, in <module>
+    ray.init(num_cpus=10, ignore_reinit_error=True, log_to_driver=False,_temp_dir="/rds/general/user/asm119/ephemeral")
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/worker.py", line 717, in init
+    ray_params=ray_params)
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/node.py", line 200, in __init__
+    self.start_head_processes()
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/node.py", line 805, in start_head_processes
+    self.start_redis()
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/node.py", line 580, in start_redis
+    fate_share=self.kernel_fate_share)
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/_private/services.py", line 716, in start_redis
+    fate_share=fate_share)
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/_private/services.py", line 862, in _start_redis_instance
+    wait_for_redis_to_start("127.0.0.1", port, password=password)
+  File "/rds/general/user/asm119/home/anaconda3/envs/reinforcement/lib/python3.7/site-packages/ray/_private/services.py", line 546, in wait_for_redis_to_start
+    raise RuntimeError("Unable to connect to Redis. If the Redis instance "
+RuntimeError: Unable to connect to Redis. If the Redis instance is on a different machine, check that your firewall is configured properly.

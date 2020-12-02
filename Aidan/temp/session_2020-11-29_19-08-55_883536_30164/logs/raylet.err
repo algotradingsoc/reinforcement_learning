@@ -1,0 +1,36 @@
+terminate called recursively
+terminate called after throwing an instance of 'boost::wrapexcept<boost::system::system_error>'
+*** Aborted at 1606676939 (unix time) try "date -d @1606676939" if you are using GNU date ***
+  what():  Invalid argument
+PC: @                0x0 (unknown)
+*** SIGABRT (@0x16677100007840) received by PID 30784 (TID 0x2b2234fd8180) from PID 30784; stack trace: ***
+    @     0x2b22359c5630 (unknown)
+    @     0x2b2236026387 __GI_raise
+    @     0x2b2236027a78 __GI_abort
+    @     0x2b223540d765 __gnu_cxx::__verbose_terminate_handler()
+    @     0x2b223540b746 (unknown)
+    @     0x2b223540b773 std::terminate()
+    @     0x2b223540b993 __cxa_throw
+    @     0x55ec374a3a8d boost::throw_exception<>()
+    @     0x55ec374a3b93 boost::asio::detail::do_throw_error()
+    @     0x55ec374a4012 boost::asio::ip::make_address()
+    @     0x55ec374a4084 boost::asio::ip::make_address()
+    @     0x55ec3714f5ad ParseUrlEndpoint()
+    @     0x55ec37139788 ray::ConnectSocketRetry()
+    @     0x55ec36eed2e4 plasma::PlasmaClient::Impl::Connect()
+    @     0x55ec36eed654 plasma::PlasmaClient::Connect()
+    @     0x55ec36ebc228 ray::ObjectBufferPool::ObjectBufferPool()
+    @     0x55ec36eaf9b2 ray::ObjectManager::ObjectManager()
+    @     0x55ec36dffe20 ray::raylet::Raylet::Raylet()
+    @     0x55ec36dd696b _ZZ4mainENKUlN3ray6StatusEN5boost8optionalISt13unordered_mapISsSsSt4hashISsESt8equal_toISsESaISt4pairIKSsSsEEEEEE_clES0_SD_
+    @     0x55ec36dd7af1 _ZNSt17_Function_handlerIFvN3ray6StatusERKN5boost8optionalISt13unordered_mapISsSsSt4hashISsESt8equal_toISsESaISt4pairIKSsSsEEEEEEZ4mainEUlS1_SE_E_E9_M_invokeERKSt9_Any_dataS1_SG_
+    @     0x55ec36f58a2c _ZZN3ray3gcs28ServiceBasedNodeInfoAccessor22AsyncGetInternalConfigERKSt8functionIFvNS_6StatusERKN5boost8optionalISt13unordered_mapISsSsSt4hashISsESt8equal_toISsESaISt4pairIKSsSsEEEEEEEENKUlRKS3_RKNS_3rpc22GetInternalConfigReplyEE_clESO_SS_
+    @     0x55ec36f0c33f _ZNSt17_Function_handlerIFvRKN3ray6StatusERKNS0_3rpc22GetInternalConfigReplyEEZNS4_12GcsRpcClient17GetInternalConfigERKNS4_24GetInternalConfigRequestERKSt8functionIS8_EEUlS3_S7_E_E9_M_invokeERKSt9_Any_dataS3_S7_
+    @     0x55ec36f0c43d ray::rpc::ClientCallImpl<>::OnReplyReceived()
+    @     0x55ec36e39800 _ZN5boost4asio6detail18completion_handlerIZN3ray3rpc17ClientCallManager29PollEventsFromCompletionQueueEiEUlvE_E11do_completeEPvPNS1_19scheduler_operationERKNS_6system10error_codeEm
+    @     0x55ec374a170f boost::asio::detail::scheduler::do_run_one()
+    @     0x55ec374a2c11 boost::asio::detail::scheduler::run()
+    @     0x55ec374a3c42 boost::asio::io_context::run()
+    @     0x55ec36db6cbc main
+    @     0x2b2236012555 __libc_start_main
+    @     0x55ec36dc9621 (unknown)

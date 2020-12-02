@@ -1,0 +1,12 @@
+170
+Training
+
+============================================
+
+        Job resource usage summary 
+
+                 Memory (GB)    NCPUs
+ Requested  :        50            16
+ Used       :         4 (peak)   5.17 (ave)
+
+============================================
