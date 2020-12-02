@@ -14,28 +14,25 @@ from ray.rllib.agents.ppo import PPOTrainer, DEFAULT_CONFIG
 # Start up Ray. This must be done before we instantiate any RL agents.
 ray.init(num_cpus=40, ignore_reinit_error=True, log_to_driver=False)
 
+
 config = DEFAULT_CONFIG.copy()
-config["num_workers"] = 15
+config["num_workers"] = 10
 config["num_envs_per_worker"] = 5
 config["rollout_fragment_length"] = 50
-config["train_batch_size"] = 20000
+config["train_batch_size"] = 25000
 config["batch_mode"] = "complete_episodes"
-config["num_sgd_iter"] = 50
-config["sgd_minibatch_size"] = 5000
+config["num_sgd_iter"] = 20
+config["sgd_minibatch_size"] = 2000
 config["model"]["dim"] = 200
-config["model"]["conv_filters"] = [[32, [5, 1], 5], [32, [5, 1], 5], [4, [5, 1], 5]]
+config["model"]["conv_filters"] = [[16, [5, 1], 5], [16, [5, 1], 5], [16, [5, 1], 5]]
 config[
     "num_cpus_per_worker"
 ] = 2  # This avoids running out of resources in the notebook environment when this cell is re-executed
 config["env_config"] = {
     "pricing_source": "csvdata",
     "tickers": [
-        "BRK_A",
-        "GE_",
         "GOLD_",
         "AAPL_",
-        "GS_",
-        "T_",
     ],
     "lookback": 200,
     "start": "1995-01-02",
@@ -43,9 +40,10 @@ config["env_config"] = {
     "features": [
         "return_volatility_20",
         "return_skewness_20",
-        "return_kurtosis_20",
         "adjvolume_volatility_20",
     ],
+    "random_start": True,
+    "trading_days": 1000,
 }
 
 
@@ -89,140 +87,130 @@ def load_data(
 
 
 from empyrical import max_drawdown, alpha_beta, sharpe_ratio, annual_return
-from sklearn.preprocessing import StandardScaler
-
+from sklearn.preprocessing import StandardScaler 
 
 class Equitydaily(gym.Env):
-    def __init__(self, env_config):
 
-        self.tickers = env_config["tickers"]
-        self.lookback = env_config["lookback"]
+    def __init__(self,env_config):
+        
+        self.tickers = env_config['tickers']
+        self.lookback = env_config['lookback']
+        self.random_start = env_config['random_start']
+        self.trading_days = env_config['trading_days'] # Number of days the algorithm runs before resetting
         # Load price data, to be replaced by DataLoader class
-        raw_data = load_data(
-            env_config["pricing_source"],
-            env_config["tickers"],
-            env_config["start"],
-            env_config["end"],
-            env_config["features"],
-        )
-        # Set the trading dates, features and price data
-        self.dates = raw_data["dates"]
-        self.fields = raw_data["fields"]
-        self.pricedata = raw_data["pricedata"]
-        self.featuredata = raw_data["data"]
-        self.tcostdata = raw_data["tcost"]
-        # Set up historical actions and rewards
+        raw_data = load_data(env_config['pricing_source'],env_config['tickers'],env_config['start'],env_config['end'],env_config['features'])
+        # Set the trading dates, features and price data 
+        self.dates = raw_data['dates']
+        self.fields = raw_data['fields']
+        self.pricedata = raw_data['pricedata']
+        self.featuredata = raw_data['data']
+        self.tcostdata = raw_data['tcost']
+        # Set up historical actions and rewards 
         self.n_assets = len(self.tickers) + 1
-        self.n_metrics = 2
+        self.n_metrics = 2 
         self.n_assets_fields = len(self.fields)
-        self.n_features = (
-            self.n_assets_fields * len(self.tickers) + self.n_assets + self.n_metrics
-        )  # reward function
-        # self.n_features = self.n_assets_fields * len(self.tickers)
-
+        self.n_features = self.n_assets_fields * len(self.tickers) + self.n_assets + self.n_metrics # reward function
+        #self.n_features = self.n_assets_fields * len(self.tickers)
+        
         # Set up action and observation space
-        # The last asset is cash
-        self.action_space = spaces.Box(
-            low=-1, high=1, shape=(len(self.tickers) + 1,), dtype=np.float32
-        )
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(self.lookback, self.n_features, 1),
-            dtype=np.float32,
-        )
+        # The last asset is cash 
+        self.action_space = spaces.Box(low=-1, high=1, shape=(len(self.tickers)+1,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf,
+                                            shape=(self.lookback,self.n_features,1), dtype=np.float32)
 
         self.reset()
 
     def step(self, action):
-
-        # Trade every 10 days
-        # Normalise action space
-        if self.index % 10 == 0:
+        
+        # Trade on Friday 
+        # Normalise action space 
+        if self.currentdate.weekday() == 4:
             normalised_action = action / np.sum(np.abs(action))
             self.actions = normalised_action
-
+        
         done = False
         # Rebalance portfolio at close using return of the next date
-        next_day_log_return = self.pricedata[self.index, :]
-        # transaction cost
-        transaction_cost = self.transaction_cost(self.actions, self.position_series[-1])
-
-        # Rebalancing
+        next_day_log_return = self.pricedata[self.index,:]
+        # transaction cost 
+        transaction_cost = self.transaction_cost(self.actions,self.position_series[-1])
+        
+        # Rebalancing 
         self.position_series = np.append(self.position_series, [self.actions], axis=0)
-        # Portfolio return
-        today_portfolio_return = np.sum(
-            self.actions[:-1] * next_day_log_return
-        ) + np.sum(transaction_cost)
-        self.log_return_series = np.append(
-            self.log_return_series, [today_portfolio_return], axis=0
-        )
-
-        # Calculate reward
-        # Need to cast log_return in pd series to use the functions in empyrical
+        # Portfolio return 
+        today_portfolio_return = np.sum(self.actions[:-1] * next_day_log_return) + np.sum(transaction_cost)
+        self.log_return_series = np.append(self.log_return_series, [today_portfolio_return], axis=0)
+        
+        
+        # Calculate reward 
+        # Need to cast log_return in pd series to use the functions in empyrical 
         recent_series = pd.Series(self.log_return_series)[-100:]
         rolling_volatility = np.std(recent_series)
-        self.metric = today_portfolio_return / rolling_volatility
+        if rolling_volatility > 0:
+            self.metric = today_portfolio_return / rolling_volatility 
+        else:
+            self.metric = 0
         reward = self.metric
         self.metric_series = np.append(self.metric_series, [self.metric], axis=0)
-
+        
         # Check if the end of backtest
-        if self.index >= self.pricedata.shape[0] - 2:
-            done = True
-
+        if self.trading_days is None:
+            done = self.index >= self.pricedata.shape[0]-2
+        else:
+            done = (self.index - self.start_index) >= self.trading_days
+            
         # Prepare observation for next day
         self.index += 1
         self.observation = self.get_observation()
+        self.currentdate = self.dates[self.index-1]        
 
         return self.observation, reward, done, {}
-
+    
+    
     def reset(self):
         self.log_return_series = np.zeros(shape=self.lookback)
         self.metric_series = np.zeros(shape=self.lookback)
-        self.position_series = np.zeros(shape=(self.lookback, self.n_assets))
-        self.metric = 0
-        self.index = self.lookback
+        self.position_series = np.zeros(shape=(self.lookback,self.n_assets))
+        self.metric = 0    
+        if self.random_start:
+            num_days = len(self.dates)      
+            self.start_index = np.random.randint(self.lookback, num_days - self.trading_days)
+            self.index = self.start_index
+        else:
+            self.start_index = self.lookback
+            self.index = self.lookback
         self.actions = np.zeros(shape=self.n_assets)
         self.observation = self.get_observation()
+        self.currentdate = self.dates[self.index-1]
         return self.observation
-
+    
     def get_observation(self):
-        # Can use simple moving average data here
-        price_lookback = self.featuredata[self.index - self.lookback : self.index, :]
-        metrics = np.vstack(
-            (
-                self.log_return_series[self.index - self.lookback : self.index],
-                self.metric_series[self.index - self.lookback : self.index],
-            )
-        ).transpose()
-        positions = self.position_series[self.index - self.lookback : self.index]
+        # Can use simple moving average data here 
+        price_lookback = self.featuredata[self.index-self.lookback:self.index,:]
+        metrics = np.vstack((self.log_return_series[self.index-self.start_index:self.index-self.start_index+self.lookback], 
+                             self.metric_series[self.index-self.start_index:self.index-self.start_index+self.lookback])).transpose()
+        positions = self.position_series[self.index-self.start_index:self.index-self.start_index+self.lookback]
         scaler = StandardScaler()
-        price_lookback = scaler.fit_transform(price_lookback)
+        price_lookback = pd.DataFrame(scaler.fit_transform(price_lookback)).rolling(20,min_periods=1).mean().values
         observation = np.concatenate((price_lookback, metrics, positions), axis=1)
         return observation.reshape((observation.shape[0], observation.shape[1], 1))
-
-    # 0.05% and spread to model t-cost for institutional portfolios
-    def transaction_cost(
-        self,
-        new_action,
-        old_action,
-    ):
-        turnover = np.abs(new_action - old_action)
-        fees = 0.9995 - self.tcostdata[self.index, :]
+    
+    # 0.05% and spread to model t-cost for institutional portfolios 
+    def transaction_cost(self, new_action, old_action,):
+        turnover = np.abs(new_action - old_action) 
+        fees = 0.9995 - self.tcostdata[self.index,:]
         fees = np.array(list(fees) + [0.9995])
         tcost = turnover * np.log(fees)
-        return tcost
-
+        return tcost 
 
 # Train agent
 agent = PPOTrainer(config, Equitydaily)
 
-best_reward = 10
-for i in range(2500):
+best_reward = 5
+for i in range(2000):
     result = agent.train()
-    if (result["episode_reward_mean"] > best_reward + 2) or (i % 100 == 50):
+    if (result["episode_reward_mean"] > best_reward + 1) or (i % 100 == 50):
         path = agent.save("ppoagent200")
         print(path)
-        if result["episode_reward_mean"] > best_reward + 2:
+        if result["episode_reward_mean"] > best_reward + 1:
             best_reward = result["episode_reward_mean"]
             print(i, best_reward)
