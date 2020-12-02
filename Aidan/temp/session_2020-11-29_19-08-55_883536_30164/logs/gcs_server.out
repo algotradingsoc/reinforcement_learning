@@ -1,0 +1,11 @@
+I1129 19:08:56.644431 30766 30766 io_service_pool.cc:36] IOServicePool is running with 1 io_service.
+I1129 19:08:56.661763 30766 30766 gcs_redis_failure_detector.cc:30] Starting redis failure detector.
+I1129 19:08:56.674641 30766 30766 gcs_object_manager.cc:288] Loading initial data.
+I1129 19:08:56.675031 30766 30766 gcs_node_manager.cc:410] Loading initial data.
+I1129 19:08:56.675699 30766 30766 gcs_object_manager.cc:301] Finished loading initial data.
+I1129 19:08:56.676277 30766 30766 gcs_node_manager.cc:436] Finished loading initial data.
+I1129 19:08:56.676623 30766 30766 gcs_actor_manager.cc:939] Loading initial data.
+I1129 19:08:56.677561 30766 30766 gcs_actor_manager.cc:1012] Finished loading initial data.
+I1129 19:08:56.678287 30766 30766 grpc_server.cc:74] GcsServer server started, listening on port 32865.
+I1129 19:08:56.689297 30766 30766 gcs_server.cc:269] Gcs server address = 146.179.60.56:32865
+I1129 19:08:56.689683 30766 30766 gcs_server.cc:273] Finished setting gcs server address: 146.179.60.56:32865

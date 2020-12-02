@@ -1,0 +1,3 @@
+I1129 19:08:59.199101 30784 30784 io_service_pool.cc:36] IOServicePool is running with 1 io_service.
+I1129 19:08:59.199821 30784 30784 store_runner.cc:30] Allowing the Plasma store to use up to 58.5818GB of memory.
+I1129 19:08:59.200115 30784 30784 store_runner.cc:44] Starting object store with directory /dev/shm and huge page support disabled
