@@ -66,18 +66,23 @@ We will build scripts to automate the training and update of models on AWS sagew
 
 ### Literature review   
 
+Reinforcement Learning: An Introduction  
+Richard S. Sutton and Andrew G. Barto  
+
 RL policies for continuous action space  
 
 Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor    
 https://arxiv.org/pdf/1801.01290.pdf    
 Proximal Policy Optimization Algorithms  
 https://arxiv.org/pdf/1707.06347.pdf  
+Hindsight Experience Replay   
+https://arxiv.org/abs/1707.01495    
 
 Applications of RL in trading  
 
-Deep Reinforcement Learning for Trading   
-https://arxiv.org/pdf/1911.10107.pdf   
-An Application of Deep Reinforcement Learning to Algorithmic Trading    	 	
+Deep Reinforcement Learning for Trading     
+https://arxiv.org/pdf/1911.10107.pdf    
+An Application of Deep Reinforcement Learning to Algorithmic Trading        	 	
 https://arxiv.org/pdf/2004.06627.pdf    
 
 
