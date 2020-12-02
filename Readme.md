@@ -66,8 +66,10 @@ We will build scripts to automate the training and update of models on AWS sagew
 
 ### Literature review   
 
-Reinforcement Learning: An Introduction  
-Richard S. Sutton and Andrew G. Barto  
+Books   
+
+Deep Learning Aaron Courville, Ian Goodfellow, and Yoshua Bengio    
+Reinforcement Learning: An Introduction  Richard S. Sutton and Andrew G. Barto    
 
 RL policies for continuous action space  
 
@@ -82,13 +84,8 @@ Applications of RL in trading
 
 Deep Reinforcement Learning for Trading     
 https://arxiv.org/pdf/1911.10107.pdf    
-An Application of Deep Reinforcement Learning to Algorithmic Trading        	 	
+An Application of Deep Reinforcement Learning to Algorithmic Trading     	 	
 https://arxiv.org/pdf/2004.06627.pdf    
-
-
-### 
-
-
 
 
 
