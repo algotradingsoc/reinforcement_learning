@@ -130,6 +130,6 @@ dmypy.json
 
 # RL model checkpoints
 Thomas/sampleagent/
-Thomas/sacagent/
+Thomas/sacagent200/
 Thomas/ppoagent/
 Thomas/ppoagent200/
