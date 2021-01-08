@@ -1,5 +1,9 @@
 # Ideas 
 
+## Feature construction 
+Given data for log-return, log-turnover, implied volatility, generate tsfresh features
+(rank of recent entry, mean, std, skew, kurtosis, median, min, max, etc) for these metrics of various lookback period (21,63,252)
+
 ## SAC and PPO 
 Study the parameter settings of SAC and PPO on ray, in particular the replay buffer and training batch size. Does these parameters affect training?
 
@@ -15,21 +19,13 @@ Cumulative return depends on length of backtest, how about use annualised versio
 
 Use the sharpe ratio or the difference of the sharpe ratio
 
+Reward function can be volatility scale log-returns for each time period 
+
+
+## Gym environment 
 Randomly start and end backtest in the training period (to encourage robustness?)
 
-
-## Universe and features
-
-Recreate typical trading strategies using RL 
-
-Universe 1: ETF rotations   
-SPY, QQQ, EEM, TLT, GLD, LQD
-
-Single stock universe: TSLA 
-
-Big stocks universe: BRK, GE, GOLD, AAPL, GS, T 
-
-Use the DataLoader to save csv files for features. We will use the return, t_cost, volatility_20, skewness_20 and kurtosis_20 
+Use the DataLoader to save csv files for features. 
 
 Define t-cost as a sum of bid-ask spread and fixed cost 
 
