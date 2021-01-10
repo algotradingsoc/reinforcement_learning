@@ -145,7 +145,7 @@ class Equitydaily(gym.Env):
 
         # Check if the end of backtest
         if self.trading_days is None:
-            done = self.index >= self.pricedata.shape[0] - 2
+            done = self.index >= self.targetdata.shape[0] - 100
         else:
             done = (self.index - self.start_index) >= self.trading_days
 
@@ -234,6 +234,8 @@ def train_EQ_env(config):
         testconfig = config["trainer"]["env_config"].copy()
         testconfig["start"] = config["teststart"]
         testconfig["end"] = config["testend"]
+        testconfig["random_start"] = False
+        testconfig["trading_days"] = None
         testenv = Equitydaily(testconfig)
         # run agent on test environment
         state = testenv.reset()
@@ -303,8 +305,8 @@ if __name__ == "__main__":
     testconfig["best_reward"] = 200
 
     scheduler = ASHAScheduler(
-        max_t=500,
-        grace_period=20,
+        max_t=200,
+        grace_period=10,
     )
 
     analysis = tune.run(
