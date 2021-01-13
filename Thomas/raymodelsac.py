@@ -1,6 +1,12 @@
 import gym
 from gym import spaces
-from empyrical import max_drawdown, alpha_beta, sharpe_ratio, annual_return
+from empyrical import (
+    max_drawdown,
+    alpha_beta,
+    sharpe_ratio,
+    annual_return,
+    sortino_ratio,
+)
 
 import pandas as pd
 import numpy as np
@@ -134,13 +140,15 @@ class Equitydaily(gym.Env):
 
         # Calculate reward
         # Need to cast log_return in pd series to use the functions in empyrical
-        recent_series = pd.Series(self.log_return_series)[-100:]
+        recent_series = pd.Series(self.log_return_series)
         rolling_volatility = np.std(recent_series)
         if rolling_volatility > 0:
-            self.metric = today_portfolio_return / rolling_volatility
+            self.metric = sortino_ratio(recent_series)
+            if self.metric == np.inf:
+                self.metric = 0
         else:
             self.metric = 0
-        reward = self.metric
+        reward = self.metric - self.metric_series[-1]
         self.metric_series = np.append(self.metric_series, [self.metric], axis=0)
 
         # Check if the end of backtest
@@ -257,19 +265,19 @@ if __name__ == "__main__":
 
     expt_no = sys.argv[1]
 
-    ray.init(num_cpus=60, ignore_reinit_error=True, log_to_driver=False)
+    ray.init(num_cpus=80, ignore_reinit_error=True, log_to_driver=False)
 
     envconfig = {
         "pricing_source": "OM",
         "tickers": [
-            "17275R10",
-            "58933Y10",
+            "14912310",
+            "45920010",
         ],
         "lookback": 200,
         "start": "1996-01-04",
         "end": "2005-12-31",
-        "random_start": True,
-        "trading_days": 600,
+        "random_start": False,
+        "trading_days": None,
     }
 
     envconfig["features"] = [
@@ -279,22 +287,22 @@ if __name__ == "__main__":
         "high_close",
         "low_close",
     ]
-    envconfig["target"] = "target_1"
+    envconfig["target"] = "target_5"
 
     config = DEFAULT_CONFIG.copy()
     config["num_workers"] = 0
-    config["num_envs_per_worker"] = 3
-    config["rollout_fragment_length"] = 50
+    config["num_envs_per_worker"] = 5
+    config["rollout_fragment_length"] = 20
     config["train_batch_size"] = 25000
     config["buffer_size"] = 50000
-    config["timesteps_per_iteration"] = 1000
+    config["timesteps_per_iteration"] = 10000
     config["model"]["dim"] = 200
     config["model"]["conv_filters"] = [
         [16, [5, 1], 5],
         [16, [5, 1], 5],
         [16, [5, 1], 5],
     ]
-    config["num_cpus_for_driver"] = 8
+    config["num_cpus_for_driver"] = 5
     config["env_config"] = envconfig
 
     testconfig = dict()
@@ -302,24 +310,24 @@ if __name__ == "__main__":
     testconfig["teststart"] = "2006-01-02"
     testconfig["testend"] = "2019-12-31"
     testconfig["outputmodels"] = "sampleagent"
-    testconfig["best_reward"] = 200
+    testconfig["best_reward"] = 3
 
     scheduler = ASHAScheduler(
-        max_t=200,
-        grace_period=10,
+        max_t=1000,
+        grace_period=50,
     )
 
     analysis = tune.run(
         train_EQ_env,
         metric="reward",
         mode="max",
-        resources_per_trial={"cpu": 10},  # You can add "gpu": 0.1 here
+        resources_per_trial={"cpu": 5},  # You can add "gpu": 0.1 here
         config=testconfig,
         scheduler=scheduler,
         verbose=0,
         num_samples=6,
         local_dir="sacagent",
-        stop={"reward": 200},
+        stop={"reward": 3},
         checkpoint_at_end=True,
     )
 
